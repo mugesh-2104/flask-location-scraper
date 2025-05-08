@@ -1,5 +1,5 @@
 
-# 🌍 Country-State-City Category Scraper (Flask + MongoDB)
+# 🌍 Country-State-City Category Scraper (Flask + MongoDB) - Phase 1
 
 A web scraping utility panel built using **Flask** and **MongoDB**. It lets users:
 - 📍 Scrape all cities of a selected country
