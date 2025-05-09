@@ -1,11 +1,234 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+  <meta charset="UTF-8">
+  <title>Scraping Panel</title>
+  <style>
+    *{margin: 0;padding: 0;box-sizing: border-box;}
+    body { font-family: Arial, sans-serif; margin: 40px; }
+    .tabs { display: flex; margin-bottom: 20px; }
+    .tab { padding: 10px 20px; cursor: pointer; border: 1px solid #ccc; }
+    .tab.active { background-color: #007bff; color: #fff; }
+    .content { display: none; }
+    .content.active { display: block; }
+    .form { max-width: 600px; }
+    .form__group { margin-bottom: 20px; }
+    .form__label { display: block; margin-bottom: 6px; font-weight: bold; }
+    .form__input, .form__select { width: 100%; padding: 8px; font-size: 14px; box-sizing: border-box; }
+    .form__checkbox-list { border: 1px solid #ccc; padding: 10px; max-height: 200px; overflow-y: auto; background: #f9f9f9; }
+    .form__checkbox-list label { display: block; margin-bottom: 5px; }
+    .form__button { padding: 10px 20px; background-color: #28a745; color: #fff; border: none; cursor: pointer; margin-top: 10px; }
+    .form__button-options { padding: 10px 20px; border: none; cursor: pointer; margin-top: 10px; }
+    .form__button:hover { background-color: #218838; }
+  </style>
 </head>
+
 <body>
-    
+
+  <div class="tabs">
+    <div class="tab active" data-tab="cities">Scrap Cities</div>
+    <div class="tab" data-tab="details">Scrap Details</div>
+  </div>
+
+  <!-- Tab 1: Scrap Cities -->
+  <div id="cities" class="content active form">
+
+    <div class="form__group">
+      <label class="form__label">Select Country:</label>
+      <select id="city-country" class="form__select">
+        <option value="" disabled selected>-- Select Country --</option>
+        {% for country in countries %}
+        <option value="{{ country }}">{{ country }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <button id="fetch-cities" class="form__button">Fetch Cities</button>
+    <button id="download-csv" class="form__button" style="display:none;">Download CSV</button>
+  </div>
+
+  <!-- Tab 2: Scrap Details -->
+  <!-- Tab 2: Scrap Details -->
+<div id="details" class="content form">
+  <h3 class="form__title">Scrap Full Details</h3>
+
+  <form id="scraper-form">
+    <div class="form__group">
+      <label for="country" class="form__label">Country:</label>
+      <select id="country" class="form__select">
+        <option value="" disabled selected>-- Select --</option>
+        {% for country in countries %}
+          <option value="{{ country }}">{{ country }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div class="form__group">
+      <label class="form__label">States:</label>
+      <input type="text" class="form__input" placeholder="Search states..." oninput="filterCheckboxes('state-checkboxes', this.value)">
+      <div class="form__actions">
+        <button type="button" class="form__button-options" onclick="selectAll('state-checkboxes')">Select All</button>
+        <button type="button" class="form__button-options" onclick="resetAll('state-checkboxes')">Reset</button>
+      </div>
+      <div id="state-checkboxes" class="form__checkbox-list"></div>
+    </div>
+
+    <div class="form__group">
+      <label class="form__label">Categories:</label>
+      <input type="text" class="form__input" placeholder="Search categories..." oninput="filterCheckboxes('category-checkboxes', this.value)">
+      <div class="form__actions">
+        <button type="button" class="form__button-options" onclick="selectAll('category-checkboxes')">Select All</button>
+        <button type="button" class="form__button-options" onclick="resetAll('category-checkboxes')">Reset</button>
+      </div>
+      <div id="category-checkboxes" class="form__checkbox-list"></div>
+    </div>
+
+    <button type="submit" class="form__button">Start Scraping</button>
+  </form>
+</div>
+
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Load categories
+    window.onload = function () {
+      fetch('/static/categories.json')
+        .then(res => res.json())
+        .then(data => {
+          const container = document.getElementById('category-checkboxes');
+          data.forEach(item => {
+            const label = document.createElement('label');
+            label.innerHTML =
+              `<input type="checkbox" name="categories" value="${item.categories}"> ${item.categories}`;
+            container.appendChild(label);
+          });
+        });
+    };
+
+    // Load states when country is selected
+    document.getElementById('country').addEventListener('change', function () {
+      const selected = this.value;
+      fetch('/get_states', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            country: selected
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          const container = document.getElementById('state-checkboxes');
+          container.innerHTML = '';
+          data.states.forEach(state => {
+            const label = document.createElement('label');
+            label.innerHTML = `<input type="checkbox" name="states" value="${state}"> ${state}`;
+            container.appendChild(label);
+          });
+        });
+    });
+
+    // Full scraping
+    document.getElementById('scraper-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      const country = document.getElementById('country').value;
+      const states = Array.from(document.querySelectorAll('input[name="states"]:checked')).map(el => el.value);
+      const categories = Array.from(document.querySelectorAll('input[name="categories"]:checked')).map(el => el
+        .value);
+
+      fetch('/start-scraping', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            country,
+            states,
+            categories
+          })
+        })
+        .then(res => res.json())
+        .then(data => alert('Scraping Done: ' + JSON.stringify(data)))
+        .catch(err => alert('Error: ' + err.message));
+    });
+
+    // Scrap Cities logic
+    let cityRecords = [];
+
+    document.getElementById('fetch-cities').addEventListener('click', () => {
+      const country = document.getElementById('city-country').value;
+      if (!country) return alert("Please select a country first.");
+
+      fetch('/get_cities_by_country', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            country
+          })
+        })
+        .then(res => res.json())
+        .then(data => {
+          cityRecords = data.records;
+          document.getElementById('download-csv').style.display = 'inline-block';
+          alert(`${cityRecords.length} cities fetched.`);
+        });
+    });
+
+    document.getElementById('download-csv').addEventListener('click', () => {
+  let csv = "Country,State,City\n";
+  cityRecords.forEach(r => {
+    csv += `"${r.country}","${r.state}","${r.city}"\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+
+  // ✅ Get selected country safely
+  const country = document.getElementById('city-country').value || 'cities';
+
+  a.download = `${country}-neighbourhoods.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+
+  // Refresh page after 2 seconds
+  setTimeout(() => location.reload(), 2000);
+});
+
+    function filterCheckboxes(containerId, query) {
+      const container = document.getElementById(containerId);
+      const labels = container.querySelectorAll('label');
+      const lower = query.toLowerCase();
+      labels.forEach(label => {
+        const match = label.textContent.toLowerCase().includes(lower);
+        label.style.display = match ? 'block' : 'none';
+      });
+    }
+
+    function selectAll(containerId) {
+      const checkboxes = document.querySelectorAll(`#${containerId} input[type="checkbox"]`);
+      checkboxes.forEach(cb => cb.checked = true);
+    }
+
+    function resetAll(containerId) {
+      const checkboxes = document.querySelectorAll(`#${containerId} input[type="checkbox"]`);
+      checkboxes.forEach(cb => cb.checked = false);
+    }
+  </script>
 </body>
+
 </html>
